@@ -1,0 +1,6 @@
+bin/Debug/net8.0-windows/*
+bin/Debug/*
+bin/*
+obj/Debug/net8.0-windows/*
+obj/Debug/*
+obj/*
