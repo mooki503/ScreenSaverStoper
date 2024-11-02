@@ -139,6 +139,7 @@ public partial class MainWindow : Window
         {
             const int SRCCOPY = 0xcc0020;
             const int DIB_RGB_COLORS = 0;
+            const int LOGPIXELSY = 90;
             [DllImport("User32.dll", EntryPoint = "GetDC")]
             static extern IntPtr GetDC(IntPtr hwnd);
             [DllImport("User32.dll", EntryPoint = "ReleaseDC")]
@@ -161,6 +162,8 @@ public partial class MainWindow : Window
             static extern bool WriteFile(IntPtr hFile, void* lpBuffer, uint nNumberOfBytesToWrite, out uint lpNumberOfBytesWritten, int lpOverlapped);
             [DllImport("kernel32.dll", SetLastError = true)]
             static extern bool CloseHandle(IntPtr hObject);
+	        [DllImport("gdi32.dll")]
+	        extern static int GetDeviceCaps(IntPtr hdc, int index);
 
             IntPtr screenDC = GetDC((IntPtr)null);
             if (screenDC == IntPtr.Zero)
@@ -168,7 +171,14 @@ public partial class MainWindow : Window
                 Console.WriteLine("GetDC error!");
                 return;
             }
-            IntPtr hbmScreen = CreateCompatibleBitmap(screenDC, (int)SystemParameters.PrimaryScreenWidth, (int)SystemParameters.PrimaryScreenHeight);
+
+
+            double dpi = GetDeviceCaps(screenDC, LOGPIXELSY);
+            double rate = dpi/96.0;
+            double screenWidth = SystemParameters.PrimaryScreenWidth*rate;
+            double screenHeight = SystemParameters.PrimaryScreenHeight*rate;
+
+            IntPtr hbmScreen = CreateCompatibleBitmap(screenDC, (int)screenWidth, (int)screenHeight);
             if (hbmScreen == IntPtr.Zero)
             {
                 Console.WriteLine("CreateCompatibleBitmap error!");
@@ -181,7 +191,7 @@ public partial class MainWindow : Window
                 return;
             }
             SelectObject(memDC, hbmScreen);
-            if (!BitBlt(memDC, 0, 0, (int)SystemParameters.PrimaryScreenWidth, (int)SystemParameters.PrimaryScreenHeight, screenDC, 0, 0, SRCCOPY))
+            if (!BitBlt(memDC, 0, 0, (int)screenWidth, (int)screenHeight, screenDC, 0, 0, SRCCOPY))
             {
                 Console.WriteLine("BitBlt error!");
                 return;
@@ -190,8 +200,8 @@ public partial class MainWindow : Window
             BITMAPFILEHEADER   bmfHeader;
             BITMAPINFOHEADER   bi;
             bi.biSize = (uint)Marshal.SizeOf(typeof(BITMAPINFOHEADER));
-            bi.biWidth = Convert.ToUInt32(SystemParameters.PrimaryScreenWidth);
-            bi.biHeight = Convert.ToUInt32(SystemParameters.PrimaryScreenHeight);
+            bi.biWidth = Convert.ToUInt32(screenWidth);
+            bi.biHeight = Convert.ToUInt32(screenHeight);
             bi.biPlanes = 1;
             bi.biBitCount = 32;
             bi.biCompression = 0;//BI_RGB;
@@ -201,14 +211,14 @@ public partial class MainWindow : Window
             bi.biClrUsed = 0;
             bi.biClrImportant = 0;
 
-            UInt32 dwBmpSize = (UInt32)((SystemParameters.PrimaryScreenWidth * bi.biBitCount + 31) / 32) * 4 * (uint)SystemParameters.PrimaryScreenHeight;
+            UInt32 dwBmpSize = (UInt32)((screenWidth * bi.biBitCount + 31) / 32) * 4 * (uint)screenHeight;
             UInt32 dwSizeofDIB = dwBmpSize + (UInt32)sizeof(BITMAPFILEHEADER) + (UInt32)sizeof(BITMAPINFOHEADER);
             bmfHeader.bfOffBits = (UInt32)sizeof(BITMAPFILEHEADER) + (UInt32)sizeof(BITMAPINFOHEADER);
             bmfHeader.bfSize = dwSizeofDIB;
             bmfHeader.bfType = 0x4D42; // BM.
 
             IntPtr prtBitmap = Marshal.AllocHGlobal((int)dwBmpSize);
-            GetDIBits(screenDC, hbmScreen, 0, (uint)SystemParameters.PrimaryScreenHeight, prtBitmap, &bi, DIB_RGB_COLORS);
+            GetDIBits(screenDC, hbmScreen, 0, (uint)screenHeight, prtBitmap, &bi, DIB_RGB_COLORS);
             byte[] bufBitmap = new byte[dwBmpSize];
             Marshal.Copy(prtBitmap, bufBitmap, 0, (int)dwBmpSize);
 
